@@ -160,7 +160,11 @@ for repo in "${REPOS[@]}"; do
   fi
 done
 
-printf '\nSummary: %d succeeded, %d failed.\n' "$success" "$failed"
+if [ "$DRY_RUN" -eq 1 ]; then
+  printf '\nSummary: %d planned, %d failed.\n' "$success" "$failed"
+else
+  printf '\nSummary: %d succeeded, %d failed.\n' "$success" "$failed"
+fi
 
 if [ "$failed" -gt 0 ]; then
   printf 'Failed repositories:\n' >&2
