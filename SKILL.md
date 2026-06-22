@@ -47,6 +47,24 @@ scripts/sync_github_forks.sh --execute
 
 8. Report a short summary: synced or planned, failed, skipped, and the exact command to rerun if needed.
 
+## Divergent Fork Recovery
+
+When a non-force sync fails with `can't sync because there are diverging changes`, do not immediately force every fork. Summarize the divergent repositories and explain that `--force` discards the fork-side commits to match upstream.
+
+If the user explicitly says to discard commits, discard local fork commits, force sync, overwrite, or accepts GitHub's "Discard commits" style action, run a scoped dry-run for only the failed divergent repositories:
+
+```bash
+scripts/sync_github_forks.sh --dry-run --force --repo OWNER/REPO --repo OWNER/OTHER
+```
+
+Then execute the same scoped command:
+
+```bash
+scripts/sync_github_forks.sh --execute --force --repo OWNER/REPO --repo OWNER/OTHER
+```
+
+Report the scoped force-sync result separately from the original broad sync.
+
 ## If Prerequisites Are Missing
 
 - If `gh --version` fails, stop and tell the user to install GitHub CLI before continuing.
@@ -91,6 +109,7 @@ scripts/sync_github_forks.sh --branch main --execute
 - Use `--branch BRANCH` only when the user asks for a specific branch; otherwise sync default branches.
 - Use `--include-archived` only when the user explicitly asks to include archived forks.
 - Use `--force` only when the user explicitly asks for a force sync or hard reset style sync.
+- Treat "discard commit(s)" for divergent fork sync failures as explicit permission to use `--force` only on the failed divergent repositories, after a scoped dry-run.
 - If the user asks to update, sync, or refresh one named fork, treat that as permission to execute after a dry-run confirms the single intended repository.
 - If the user asks to update, sync, or refresh all forks or another broad scope, run dry-run first and ask for approval unless the user explicitly requested immediate execution.
 - If the user asks to run the skill without saying dry-run or execute and the scope is unclear, run `--dry-run`.
@@ -99,6 +118,7 @@ scripts/sync_github_forks.sh --branch main --execute
 
 - Default to `--dry-run`; do not modify remote repositories unless the user requested execution.
 - Do not pass `--force` unless the user explicitly asks for a hard reset style sync.
+- Do not broaden a recovery force-sync beyond the repositories that failed from divergent changes unless the user explicitly asks for broad force sync.
 - Default to non-archived repositories. Use `--include-archived` only when the user explicitly asks for archived forks too.
 - Prefer syncing default branches. Use `--branch` only when the user asks for a specific branch.
 - If sandboxed `gh auth status` fails, retry outside the sandbox before asking the user to re-authenticate with `gh auth login`.
