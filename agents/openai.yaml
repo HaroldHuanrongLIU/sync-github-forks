@@ -1,4 +1,4 @@
 interface:
   display_name: "Sync GitHub Forks"
-  short_description: "Sync all GitHub forks with gh CLI"
-  default_prompt: "Use $sync-github-forks to dry-run syncing all my forked GitHub repositories with gh CLI."
+  short_description: "Check and sync GitHub forks with gh CLI"
+  default_prompt: "Use $sync-github-forks to check which of my forked GitHub repositories are behind upstream."
