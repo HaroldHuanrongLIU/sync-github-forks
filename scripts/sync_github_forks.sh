@@ -39,7 +39,7 @@ urlencode() {
 
 is_transient_error() {
   case "$1" in
-    *EOF*|*'connection reset'*|*'Connection reset'*|*timeout*|*Timeout*|*'TLS handshake timeout'*|*'temporary failure'*|*'Temporary failure'*)
+    *EOF*|*'connection reset'*|*'Connection reset'*|*timeout*|*Timeout*|*'TLS handshake timeout'*|*'temporary failure'*|*'Temporary failure'*|*'invalid character'*|*'unexpected token'*|*'looking for beginning of value'*|*'unexpected end of JSON input'*|*'<html'*|*'<HTML'*)
       return 0
       ;;
     *)
@@ -278,6 +278,32 @@ verify_identical() {
   return 1
 }
 
+verify_with_retry() {
+  local repo="$1"
+  local fork_branch="$2"
+  local parent_repo="$3"
+  local parent_branch="$4"
+  local verify
+  local attempt=1
+
+  while [ "$attempt" -le 3 ]; do
+    if verify="$(verify_identical "$repo" "$fork_branch" "$parent_repo" "$parent_branch")"; then
+      printf '%s\n' "$verify"
+      return 0
+    fi
+
+    if [ "$attempt" -lt 3 ] && [[ "$verify" == *"status=behind"* ]]; then
+      printf '  verification shows repository still behind, retrying in %d seconds (attempt %d/3)\n' "$RETRY_DELAY_SECONDS" "$attempt"
+      sleep "$RETRY_DELAY_SECONDS"
+      attempt=$((attempt + 1))
+      continue
+    fi
+
+    printf '%s\n' "$verify"
+    return 1
+  done
+}
+
 sync_with_gh() {
   local repo="$1"
   local use_force="$2"
@@ -452,7 +478,7 @@ execute_action() {
     [ -n "$output" ] && printf '%s' "$output"
   fi
 
-  if ! verify="$(verify_identical "$repo" "$fork_branch" "$parent_repo" "$parent_branch")"; then
+  if ! verify="$(verify_with_retry "$repo" "$fork_branch" "$parent_repo" "$parent_branch")"; then
     printf 'failed: %s\n' "$verify"
     return 1
   fi

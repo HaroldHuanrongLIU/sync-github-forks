@@ -172,4 +172,5 @@ scripts/sync_github_forks.sh --execute --force --repo OWNER/REPO --repo OWNER/OT
 
 - `gh repo sync OWNER/REPO` syncs a remote fork from its parent. Without `--force`, GitHub CLI uses a fast-forward update and fails rather than hard-resetting divergent work.
 - GitHub CLI's sync success is not sufficient evidence for branch-name mismatch cases. Use the script's post-sync compare verification.
+- The script retries transient GitHub API errors, including HTML responses that cause JSON parse failures, and re-checks verification when large repositories are briefly still reported as behind.
 - This skill is for remote GitHub forks, not local working tree synchronization. For a single local clone, use normal `git fetch`, `git merge --ff-only`, or `gh repo sync` from that repository.
