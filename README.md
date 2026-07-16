@@ -35,6 +35,13 @@ Check fork status without changing remote repositories:
 scripts/sync_github_forks.sh --status
 ```
 
+Emit machine-readable status:
+
+```bash
+scripts/sync_github_forks.sh --status --format json
+scripts/sync_github_forks.sh --status --format tsv
+```
+
 Preview the forks that would be synced:
 
 ```bash
@@ -72,6 +79,21 @@ Dry-run mode is the default. The script compares each fork with its upstream fir
 By default, archived repositories are excluded. Add `--include-archived` only when archived forks should be considered.
 
 When a fork default branch has a different name from the upstream default branch, the script uses Git refs API updates and verifies the result. Non-force updates use `force=false`; destructive resets require `--force`.
+
+Fork enumeration is cursor-paged. A transient GitHub failure retries only the
+failed page, and execute mode does not write any repository until enumeration
+has completed. Retry diagnostics are written to stderr so JSON and TSV stdout
+remain parseable.
+
+Exit codes distinguish operational failures from safe blocking:
+
+- `0`: completed without operational errors.
+- `1`: authentication, enumeration, compare, sync, or verification error.
+- `2`: dry-run or execute found divergent forks that require explicit
+  `--force`; safe repositories may still have been processed.
+
+Human output is the default. JSON produces one document with repository results
+and a summary. TSV produces a header, repository rows, and a final summary row.
 
 ## Development
 

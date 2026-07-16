@@ -48,6 +48,9 @@ scripts/sync_github_forks.sh --dry-run
 ```
 
 The dry-run compares forks first and prints planned actions instead of blindly listing every fork.
+If dry-run exits 2, the scan completed but one or more divergent forks were
+blocked because `--force` was not authorized. Treat exit 1 as an operational
+failure.
 
 8. Execute after the dry-run result identifies the intended target and the user's intent allows execution:
 
@@ -69,7 +72,30 @@ The script compares each fork default branch against its upstream parent's defau
 
 After any write, the script runs a focused compare and requires `behind=0`, `ahead=0`, and `status=identical` before counting the repository as succeeded.
 
-Transient GitHub API errors such as EOF, connection reset, and timeouts are retried automatically before the repository is marked failed.
+Transient GitHub API errors such as EOF, connection reset, malformed JSON, and
+timeouts are retried automatically. Fork enumeration uses an explicit cursor
+loop so only the failed GraphQL page is retried; no repositories are written
+unless enumeration completes.
+
+## Output and Exit Codes
+
+Human-readable output is the default. Use `--format tsv` or `--format json`
+when the result will be parsed:
+
+```bash
+scripts/sync_github_forks.sh --status --format json
+scripts/sync_github_forks.sh --dry-run --format tsv
+```
+
+Retry and progress diagnostics go to stderr, so TSV and JSON stdout remain
+machine-readable. JSON is one document with `repositories` and `summary`.
+TSV contains a header, one repository row per result, and a summary row.
+
+- Exit 0: completed without operational errors; status mode also uses 0 when
+  forks are divergent.
+- Exit 1: authentication, enumeration, compare, sync, or verification error.
+- Exit 2: dry-run or execute completed, but unforced divergent forks were
+  blocked. This does not mean other safe syncs failed.
 
 ## Branch Name Mismatches
 
@@ -116,13 +142,19 @@ gh auth login -h github.com
 
 ## Script Usage
 
-`scripts/sync_github_forks.sh` uses GitHub GraphQL through `gh api graphql` to find forked repositories and default branches, GitHub compare API to classify status, `gh repo sync` for normal matching-branch syncs, and Git refs API for default-branch mismatch cases.
+`scripts/sync_github_forks.sh` uses cursor-paged GitHub GraphQL through
+`gh api graphql` to find forked repositories and default branches, GitHub
+compare API to classify status, `gh repo sync` for normal matching-branch
+syncs, and Git refs API for default-branch mismatch cases.
 
 Common commands:
 
 ```bash
 # Check all non-archived forks and print behind/ahead status.
 scripts/sync_github_forks.sh --status
+
+# Emit one machine-readable JSON document.
+scripts/sync_github_forks.sh --status --format json
 
 # Preview all non-archived forks owned by the authenticated user.
 scripts/sync_github_forks.sh --dry-run
@@ -167,10 +199,12 @@ scripts/sync_github_forks.sh --execute --force --repo OWNER/REPO --repo OWNER/OT
 - If sandboxed `gh auth status` fails, retry outside the sandbox before asking the user to re-authenticate with `gh auth login`.
 - Do not execute when natural-language repository matching is ambiguous.
 - If a repository fails to sync, continue to the next repository and summarize failures at the end with the phase and reason.
+- Treat exit 2 from dry-run or execute as a blocked-divergence result requiring
+  user direction, not as permission to retry with `--force`.
 
 ## Notes
 
 - `gh repo sync OWNER/REPO` syncs a remote fork from its parent. Without `--force`, GitHub CLI uses a fast-forward update and fails rather than hard-resetting divergent work.
 - GitHub CLI's sync success is not sufficient evidence for branch-name mismatch cases. Use the script's post-sync compare verification.
-- The script retries transient GitHub API errors, including HTML responses that cause JSON parse failures, and re-checks verification when large repositories are briefly still reported as behind.
+- The script retries transient GitHub API errors, including HTML responses that cause JSON parse failures, retries only the failed enumeration page, and re-checks verification when large repositories are briefly still reported as behind.
 - This skill is for remote GitHub forks, not local working tree synchronization. For a single local clone, use normal `git fetch`, `git merge --ff-only`, or `gh repo sync` from that repository.
