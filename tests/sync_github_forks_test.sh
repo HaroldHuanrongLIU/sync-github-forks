@@ -100,7 +100,7 @@ compare_for() {
     repos/upstream/behind/compare/main...owner:main)
       printf 'behind\t5\t0\n'
       ;;
-    repos/upstream/diverged/compare/main...owner:main)
+    repos/upstream/diverged/compare/main...owner:main|repos/upstream/diverged/compare/dev...owner:dev)
       printf 'diverged\t2\t1\n'
       ;;
     repos/upstream/mismatch/compare/main...owner:master)
@@ -148,7 +148,7 @@ compare_for() {
         printf 'behind\t1\t0\n'
       fi
       ;;
-    repos/upstream/ahead/compare/main...owner:main)
+    repos/upstream/ahead/compare/main...owner:main|repos/upstream/ahead/compare/dev...owner:dev)
       printf 'ahead\t0\t4\n'
       ;;
     repos/upstream/archived/compare/main...owner:main)
@@ -480,6 +480,42 @@ test_execute_uses_requested_branch_for_compare_and_sync() {
   ' _ "$SCRIPT"
 }
 
+test_dry_run_preserves_requested_branch_without_writing() {
+  run_with_fake_gh "dry run preserves requested branch without writing" bash -c '
+    set -euo pipefail
+    output="$("$1" --dry-run --branch dev --repo owner/branch)"
+    [[ "$output" == *"  gh repo sync owner/branch --branch dev"* ]]
+    grep -Fq "api repos/upstream/branch/compare/dev...owner:dev" "$GH_LOG"
+    [[ "$(grep -c "repo sync" "$GH_LOG" || true)" -eq 0 ]]
+    [[ "$(grep -c "api -X PATCH" "$GH_LOG" || true)" -eq 0 ]]
+  ' _ "$SCRIPT"
+}
+
+test_force_dry_run_preserves_requested_branch_without_writing() {
+  run_with_fake_gh "force dry run preserves requested branch without writing" bash -c '
+    set -euo pipefail
+    for repo in owner/ahead owner/diverged; do
+      output="$("$1" --dry-run --force --branch dev --repo "$repo")"
+      [[ "$output" == *"  gh repo sync $repo --branch dev --force"* ]]
+    done
+    [[ "$(grep -c "repo sync" "$GH_LOG" || true)" -eq 0 ]]
+    [[ "$(grep -c "api -X PATCH" "$GH_LOG" || true)" -eq 0 ]]
+  ' _ "$SCRIPT"
+}
+
+test_dry_run_omits_branch_option_when_not_requested() {
+  run_with_fake_gh "dry run omits branch option when not requested" bash -c '
+    set -euo pipefail
+    output="$("$1" --dry-run --repo owner/behind)"
+    [[ "$output" == *"  gh repo sync owner/behind"* ]]
+    [[ "$output" != *"--branch"* ]]
+    output="$("$1" --dry-run --force --repo owner/ahead --repo owner/diverged)"
+    [[ "$output" == *"  gh repo sync owner/ahead --force"* ]]
+    [[ "$output" == *"  gh repo sync owner/diverged --force"* ]]
+    [[ "$output" != *"--branch"* ]]
+  ' _ "$SCRIPT"
+}
+
 test_execute_aborts_when_later_page_exhausts_retries() {
   run_with_fake_gh "execute aborts when later page exhausts retries" bash -c '
     set -euo pipefail
@@ -799,6 +835,9 @@ test_execute_fast_forwards_branch_mismatch_without_force
 test_force_resets_branch_mismatch_and_verifies
 test_execute_retries_transient_eof_sync_failure
 test_execute_uses_requested_branch_for_compare_and_sync
+test_dry_run_preserves_requested_branch_without_writing
+test_force_dry_run_preserves_requested_branch_without_writing
+test_dry_run_omits_branch_option_when_not_requested
 test_execute_aborts_when_later_page_exhausts_retries
 test_enumeration_retries_only_failed_page
 test_invalid_format_fails_without_stdout

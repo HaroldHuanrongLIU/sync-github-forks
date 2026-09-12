@@ -615,12 +615,14 @@ dry_run_action() {
   local behind="$6"
   local ahead="$7"
   local branch_mismatch=0
+  local branch_arg=""
 
   LAST_ACTION="skip"
   LAST_RESULT="error"
   LAST_MESSAGE="unsupported status"
 
   [ "$fork_branch" != "$parent_branch" ] && [ -z "$BRANCH" ] && branch_mismatch=1
+  [ -n "$BRANCH" ] && printf -v branch_arg ' --branch %q' "$BRANCH"
 
   case "$status" in
     identical)
@@ -636,7 +638,7 @@ dry_run_action() {
           human_printf '  force-reset %s %s <- %s@%s\n' "$repo" "$fork_branch" "$parent_repo" "$parent_branch"
         else
           LAST_ACTION="force-sync"
-          human_printf '  gh repo sync %s --force\n' "$repo"
+          human_printf '  gh repo sync %s%s --force\n' "$repo" "$branch_arg"
         fi
         LAST_RESULT="planned"
         LAST_MESSAGE="force sync planned"
@@ -653,7 +655,7 @@ dry_run_action() {
         human_printf '  fast-forward %s %s <- %s@%s\n' "$repo" "$fork_branch" "$parent_repo" "$parent_branch"
       else
         LAST_ACTION="sync"
-        human_printf '  gh repo sync %s\n' "$repo"
+        human_printf '  gh repo sync %s%s\n' "$repo" "$branch_arg"
       fi
       LAST_RESULT="planned"
       LAST_MESSAGE="safe fast-forward"
@@ -666,7 +668,7 @@ dry_run_action() {
           human_printf '  force-reset %s %s <- %s@%s\n' "$repo" "$fork_branch" "$parent_repo" "$parent_branch"
         else
           LAST_ACTION="force-sync"
-          human_printf '  gh repo sync %s --force\n' "$repo"
+          human_printf '  gh repo sync %s%s --force\n' "$repo" "$branch_arg"
         fi
         LAST_RESULT="planned"
         LAST_MESSAGE="force sync planned"

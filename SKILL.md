@@ -31,7 +31,7 @@ gh auth status
 3. In sandboxed environments, `gh` may not see the user's keyring or real network context. If `gh auth status` fails in the sandbox, retry outside the sandbox before reporting an authentication failure. If the user explicitly asks to use the real/local `gh`, run `gh` outside the sandbox.
 4. Resolve named repositories before syncing:
    - If the user provides exact `OWNER/REPO`, use that value with `--repo`.
-   - If the user gives a natural-language name such as "cc switch", list forks and match normalized names: lowercase and ignore spaces, hyphens, and underscores.
+   - If the user gives a natural-language name such as "cc switch", obtain the complete fork list using the Decision Rules, then match normalized names: lowercase and ignore spaces, hyphens, and underscores.
    - If exactly one fork clearly matches, use that `OWNER/REPO`.
    - If multiple forks are plausible, show the candidates and ask which one to sync.
 5. If the user did not specify an owner, let the script use the authenticated GitHub user.
@@ -178,20 +178,21 @@ scripts/sync_github_forks.sh --execute --force --repo OWNER/REPO --repo OWNER/OT
 ## Decision Rules
 
 - Use `--repo OWNER/REPO` when the user names one fork or asks to test the workflow on a single repository.
-- For natural-language repository names, resolve candidates with `gh repo list OWNER --fork --json nameWithOwner,name,parent` before choosing `--repo`.
+- For natural-language repository names, resolve candidates with `gh repo list OWNER --fork --limit 1000 --json nameWithOwner,name,parent` before choosing `--repo`. If this lookup needs an owner and the user did not provide one, use `gh api user --jq '.login'` to resolve `OWNER`.
+  Count the full returned JSON array before matching. If its length equals the limit, increase the limit (for example, double it) and repeat until a successful response contains fewer repositories than the limit. Only then normalize and match candidates; failed or potentially truncated results cannot establish no match or a unique match.
 - If natural-language matching returns multiple plausible repositories, ask the user to choose instead of guessing.
 - Use `--owner OWNER` when the user wants forks owned by a specific user or organization.
 - Use `--branch BRANCH` only when the user asks for a specific branch; otherwise sync default branches. `--branch` disables default-branch mismatch handling because the user has requested a specific branch.
 - Use `--include-archived` only when the user explicitly asks to include archived forks.
 - Use `--force` only when the user explicitly asks for a force sync or hard reset style sync.
 - Treat "discard commit(s)" for divergent fork sync failures as explicit permission to use `--force` only on the failed divergent repositories, after a scoped dry-run.
-- If the user asks to update, sync, or refresh one named fork, treat that as permission to execute after a dry-run confirms the single intended repository.
-- If the user asks to update, sync, or refresh all forks or another broad scope, run dry-run first and ask for approval unless the user explicitly requested immediate execution.
+- If the user asks to update, sync, or refresh a clear scope—one named fork, all forks, or forks owned by a specified owner—treat that as permission for non-force execution. After a dry-run confirms the intended scope, execute without asking for approval again; preserve the explicit immediate broad execution exception in the Default Workflow.
+- Keep status-only and preview-only requests read-only. Resolve any scope ambiguity before execution.
 - If the user asks to run the skill without saying dry-run or execute and the scope is unclear, run `--dry-run`.
 
 ## Safety Rules
 
-- Default to `--dry-run`; do not modify remote repositories unless the user requested execution.
+- Default to `--dry-run`; modify remote repositories only when the user's request authorizes execution under the Decision Rules.
 - Do not pass `--force` unless the user explicitly asks for a hard reset style sync.
 - Do not broaden a recovery force-sync beyond the repositories that failed from divergent changes unless the user explicitly asks for broad force sync.
 - Default to non-archived repositories. Use `--include-archived` only when the user explicitly asks for archived forks too.
